@@ -1,0 +1,24 @@
+{
+  "knowledge_base_root": "",
+  "sync_kb": false,
+  "retention_days": 7,
+  "reviewer_commands": {},
+  "reviewer_adapters": {
+    "codex": true,
+    "claude-code": true,
+    "hermes": true
+  },
+  "reviewer_timeout_seconds": 180,
+  "reviewer_command_examples": {
+    "codex": "built-in adapter: codex exec -C <project> -s read-only ...",
+    "claude-code": "built-in adapter: claude -p --json-schema ...",
+    "hermes": "built-in adapter: hermes chat -q ... -Q"
+  },
+  "privacy_masks": [
+    ".env",
+    ".pem",
+    ".key",
+    "token",
+    "secret"
+  ]
+}

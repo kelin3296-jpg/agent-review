@@ -1,0 +1,90 @@
+flowchart TD
+    Done(["Host Agent 完成任务\n末尾询问是否复核"]) --> UserAsk{"用户回复\n复核关键词?"}
+    UserAsk -- "否" --> NoReview(["不调用 agent-review\n等待用户手动触发"])
+    UserAsk -- "是" --> Start(["Host Agent 调用\nagent-review review --host <agent>"])
+    Start --> LoopGuard{"AGENT_REVIEW_ACTIVE\n= 1?"}
+    LoopGuard -- "是" --> SkipLoop(["SKIP: 循环守卫\n跳过复核"])
+    LoopGuard -- "否" --> CollectInputs["收集输入材料\n- task_text / final_response_text\n- changed_files (自动 git status)\n- diff_text (自动 git diff)\n- tests_log / commands_log"]
+
+    CollectInputs --> LoadConfig["加载配置\n全局 ~/.agent-review/config.json\n→ 项目 agent-review.json 覆盖"]
+    LoadConfig --> PolicyCheck{"Policy 判断\n当前材料是否触发复核?"}
+
+    PolicyCheck -- "无改动无动作" --> SkipCase["SKIP: 写入案卷\n不触发复核"]
+    PolicyCheck -- "有文件改动\ndiff / 高风险文件\n项目变更命令\n交付声明" --> SelectReviewer["路由选择 reviewer\n(不能自己审自己)"]
+
+    SelectReviewer --> ReviewerRouter{"路由表查找"}
+    ReviewerRouter -- "claude-code 宿主" --> RouteCC["codex → hermes"]
+    ReviewerRouter -- "codex 宿主" --> RouteCX["claude-code → hermes"]
+    ReviewerRouter -- "hermes 宿主" --> RouteHM["codex → claude-code"]
+    ReviewerRouter -- "指定 local" --> RouteLocal["直接用内置复核器"]
+
+    RouteCC --> ReviewerFound
+    RouteCX --> ReviewerFound
+    RouteHM --> ReviewerFound
+    RouteLocal --> SetupCase
+
+    ReviewerFound{"找到可用\nreviewer?"}
+    ReviewerFound -- "adapter 或 command 可用" --> SetupCase
+    ReviewerFound -- "全部不可用" --> FallbackLocal["降级到内置复核器\n(fallback_reason 记录原因)"]
+
+    FallbackLocal --> SetupCase
+
+    SetupCase["案卷准备\n- 清理 7 天前旧案卷\n- 创建 cases/YYMMDD-编号/\n- git exclude 写入\n- 写入 manifest.json\n- 生成 review-brief.md\n  (截断: 任务2K/回复3K/diff6K/测试4K)"]
+
+    SetupCase --> Preflight{"安全 Preflight\n检测密钥泄露?"}
+
+    Preflight -- "命中 .env / token\n/ API key / secret" --> PreflightFail["FIX + critical\n直接阻断\n不交给外部 reviewer"]
+
+    Preflight -- "未发现敏感信息" --> ReviewerKind{"reviewer 类型?"}
+
+    ReviewerKind -- "adapter\n(Codex/Claude/Hermes)" --> RunAdapter["调用真实 reviewer\n- 设置 AGENT_REVIEW_ACTIVE=1\n- 传 JSON Schema 约束输出\n- 临时目录存放原始输出\n- 超时: 180s"]
+
+    ReviewerKind -- "external command\n(自定义命令)" --> RunExternal["执行外部命令\n{case_path} 替换为案卷路径\n参数数组执行, 不走 shell"]
+
+    ReviewerKind -- "builtin\n(内置规则复核器)" --> RunBuiltin
+
+    RunAdapter --> AdapterOK{"调用成功?"}
+    AdapterOK -- "成功" --> ParseOutput["解析 JSON 输出\nvalidate_review_payload"]
+    AdapterOK -- "失败 / 超时 / 不合规" --> FallbackAfterFail["降级到内置复核器\nfallback_reason 记录错误"]
+
+    RunExternal --> ExternalOK{"执行成功?"}
+    ExternalOK -- "成功" --> ParseOutput
+    ExternalOK -- "失败" --> FallbackAfterFail
+
+    FallbackAfterFail --> RunBuiltin
+
+    RunBuiltin["内置规则复核器"] --> BuiltinRules{"判断规则"}
+    BuiltinRules -- "测试日志有失败信号\n(traceback/failed/error)" --> BuiltinTestFail["FIX + critical\ncan_deliver=false"]
+    BuiltinRules -- "源码改动无测试日志\n(.py/.js/.ts/.go 等)" --> BuiltinNoTest["FIX + normal\ncan_deliver=false"]
+    BuiltinRules -- "只改文档\n(.md/.txt)" --> BuiltinDocPass["PASS\nseverity=none"]
+    BuiltinRules -- "其他情况\n(未命中以上规则)" --> BuiltinPass["PASS\n未发现阻断项"]
+
+    ParseOutput --> WriteOutputs
+    BuiltinTestFail --> WriteOutputs
+    BuiltinNoTest --> WriteOutputs
+    BuiltinDocPass --> WriteOutputs
+    BuiltinPass --> WriteOutputs
+    PreflightFail --> WriteOutputs
+
+    WriteOutputs["写入案卷结果\n- review-result.json\n- review-result.md\n- latest-review.md\n- 复核案卷索引.md\n- case README.md\n- manifest.json 更新"]
+
+    WriteOutputs --> ReturnCode{"返回码"}
+    ReturnCode -- "FIX + critical\ncan_deliver=false" --> Exit2(["exit code 2\n严重问题"])
+    ReturnCode -- "其他" --> Exit0(["exit code 0"])
+    SkipCase --> Exit0
+    SkipLoop --> Exit0
+
+    style Start fill:#4A90D9,color:#fff
+    style Done fill:#4A90D9,color:#fff
+    style NoReview fill:#F0AD4E,color:#fff
+    style Exit0 fill:#5CB85C,color:#fff
+    style Exit2 fill:#D9534F,color:#fff
+    style SkipLoop fill:#F0AD4E,color:#fff
+    style SkipCase fill:#F0AD4E,color:#fff
+    style PreflightFail fill:#D9534F,color:#fff
+    style BuiltinTestFail fill:#D9534F,color:#fff
+    style BuiltinNoTest fill:#F0AD4E,color:#fff
+    style BuiltinDocPass fill:#5CB85C,color:#fff
+    style BuiltinPass fill:#5CB85C,color:#fff
+    style FallbackLocal fill:#F0AD4E,color:#fff
+    style FallbackAfterFail fill:#F0AD4E,color:#fff

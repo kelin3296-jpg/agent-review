@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FIX"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["none", "normal", "critical"]
+    },
+    "acceptance_checklist": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "criterion": {"type": "string"},
+          "source": {"type": "string"},
+          "result": {"type": "string", "enum": ["pass", "fail", "unknown"]},
+          "evidence": {"type": "string"}
+        },
+        "required": ["id", "criterion", "source", "result", "evidence"]
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "missing_requirement",
+              "evidence_missing",
+              "format_error",
+              "safety_risk",
+              "test_failure",
+              "scope_risk",
+              "reviewer_failed",
+              "other"
+            ]
+          },
+          "severity": {"type": "string", "enum": ["normal", "critical"]},
+          "description": {"type": "string"},
+          "evidence": {"type": "string"},
+          "fix_instruction": {"type": "string"}
+        },
+        "required": ["type", "severity", "description", "evidence", "fix_instruction"]
+      }
+    },
+    "fix_instructions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "can_deliver": {
+      "type": "boolean"
+    },
+    "reviewer_confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "status",
+    "summary",
+    "severity",
+    "acceptance_checklist",
+    "issues",
+    "fix_instructions",
+    "suggestions",
+    "can_deliver",
+    "reviewer_confidence",
+    "findings",
+    "evidence"
+  ]
+}

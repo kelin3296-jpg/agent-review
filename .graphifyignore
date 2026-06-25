@@ -1,0 +1,11 @@
+# Graphify ignore for agent-review project
+
+# Review case archives (bulk generated output, not source knowledge)
+.agent-review/cases/
+.agent-review/latest-review.md
+
+# System files
+.DS_Store
+
+# 如需排除文档（无 LLM API key 时），取消下面注释：
+# *.md
